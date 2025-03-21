@@ -2,6 +2,8 @@
 
 Fishing Frenzy için geliştirilmiş özelliklere sahip otomatik balık tutma botu. Günlük ödül toplama, otomatik balık satma ve daha fazla özellik içerir.
 
+Register here: https://fishingfrenzy.co/?code=Q43PJ7
+
 ## ✨ Özellikler
 
 - **Enerji Tabanlı Balık Tutma**: Mevcut enerjiye göre otomatik olarak balık tutma menzili seçimi
