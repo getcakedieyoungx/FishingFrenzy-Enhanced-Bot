@@ -1,5 +1,8 @@
 # 🎣 Fishing Frenzy Enhanced Bot v2.0.0
 
+Register:
+[FishingFrenzy.co]([https://fishingfrenzy.co](https://fishingfrenzy.co/?code=Q43PJ7))
+
 ## 🚀 Features
 
 - ✨ Multi-Account Support (Manage multiple accounts simultaneously)
@@ -88,7 +91,7 @@ The bot now supports multiple accounts. The `config.json` file has the following
 
 ### 🔑 Getting Tokens
 
-1. Log in to [FishingFrenzy.co](https://fishingfrenzy.co)
+1. Log in to [FishingFrenzy.co]([https://fishingfrenzy.co](https://fishingfrenzy.co/?code=Q43PJ7))
 2. Open your browser's developer tools (F12)
 3. Go to the Network tab
 4. Find any API request
