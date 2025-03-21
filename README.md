@@ -1,7 +1,7 @@
 # 🎣 Fishing Frenzy Enhanced Bot v2.0.0
 
 Register:
-[FishingFrenzy.co]([https://fishingfrenzy.co](https://fishingfrenzy.co/?code=Q43PJ7))
+[FishingFrenzy.co](https://fishingfrenzy.co/?code=Q43PJ7))
 
 ## 🚀 Features
 
