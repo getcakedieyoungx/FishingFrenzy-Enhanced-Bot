@@ -1,117 +1,193 @@
-# 🎣 Fishing Frenzy  Bot
+# 🎣 Fishing Frenzy Enhanced Bot v2.0.0
 
-Fishing Frenzy için geliştirilmiş özelliklere sahip otomatik balık tutma botu. Günlük ödül toplama, otomatik balık satma ve daha fazla özellik içerir.
+## 🚀 Features
 
-Register here: https://fishingfrenzy.co/?code=Q43PJ7
+- ✨ Multi-Account Support (Manage multiple accounts simultaneously)
+- 🎯 Automatic fishing
+- 💰 Automatic fish selling
+- 🎁 Automatic daily reward claiming
+- ⚡ Smart energy management
+- 📊 Detailed statistics
+- 🔄 Automatic reconnection
+- 🌈 Colorful console output
 
-## ✨ Özellikler
+## 📋 Requirements
 
-- **Enerji Tabanlı Balık Tutma**: Mevcut enerjiye göre otomatik olarak balık tutma menzili seçimi
-- **Günlük Ödül Toplama**: Günlük ödülleri otomatik olarak toplama
-- **Otomatik Balık Satma**: Düşük kaliteli balıkları otomatik olarak satma, yüksek kaliteli balıkları saklama
-- **7/24 Çalışma**: Sürekli balık tutma ve otomatik yeniden deneme sistemi
-- **Enerji Takibi**: Enerji seviyelerini izler ve tükendiğinde yenilenmeyi bekler
-- **Detaylı Loglama**: Renkli durum güncellemeleri ile kapsamlı konsol logları
-- **Hata Yönetimi**: Güçlü hata kurtarma ve bağlantı yönetimi
-- **WebSocket Yeniden Bağlanma**: Bağlantı kesilirse otomatik olarak yeniden bağlanma
-- **Yapılandırılabilir Ayarlar**: Kendi ihtiyaçlarınıza göre özelleştirilebilir
+- Node.js (v14 or higher)
+- npm or yarn
 
-## 📋 Gereksinimler
+## 🛠️ Installation
 
-- Node.js (v14 veya daha yüksek)
-- Geçerli Fishing Frenzy kimlik doğrulama tokeni
-
-## 🚀 Kurulum
-
-1. Depoyu klonlayın:
+1. Clone the repository:
 ```bash
 git clone https://github.com/getcakedieyoungx/FishingFrenzy-Enhanced-Bot.git
-cd FishingFrenzy-Enhanced-Bot
 ```
 
-2. Bağımlılıkları yükleyin:
+2. Install required packages:
 ```bash
 npm install
+# or
+yarn install
 ```
 
-3. Kök dizinde bir `token.txt` dosyası oluşturun ve Fishing Frenzy kimlik doğrulama tokeninizi yapıştırın:
-```bash
-echo "TOKEN_BURAYA" > token.txt
-```
+3. Edit the `config.json` file.
 
-## 💻 Kullanım
+## ⚙️ Configuration
 
-Botu başlatın:
-```bash
-npm start
-```
+The bot now supports multiple accounts. The `config.json` file has the following structure:
 
-## ⚙️ Yapılandırma
-
-`index.js` dosyasında aşağıdaki yapılandırma değişkenlerini değiştirerek botun davranışını özelleştirebilirsiniz:
-
-```javascript
-const config = {
-  authToken: authToken,
-  apiBaseUrl: 'https://api.fishingfrenzy.co',
-  wsUrl: 'wss://api.fishingfrenzy.co',
-  fishingRange: 'mid_range', 
-  is5x: false,
-  delayBetweenFishing: 5000,
-  retryDelay: 30000,
-  maxRetries: 5,
-  energyRefreshHours: 24, 
-  rangeCosts: {
-    'short_range': 1,
-    'mid_range': 2,
-    'long_range': 3
+```json
+{
+  "global": {
+    "apiBaseUrl": "https://api.fishingfrenzy.co",
+    "wsUrl": "wss://ws.fishingfrenzy.co",
+    "wsTimeout": 30000,
+    "wsReconnectDelay": 5000,
+    "maxRetries": 3,
+    "retryDelay": 5000,
+    "energyRefreshHours": 24,
+    "logLevel": "info",
+    "rangeCosts": {
+      "short_range": 1,
+      "mid_range": 2,
+      "long_range": 3
+    }
   },
-  // Yeni özellikler için yapılandırma
-  enableDailyClaim: true,         // Günlük ödül toplama aktif/pasif
-  enableAutoSellFish: true,       // Otomatik balık satışı aktif/pasif
-  minFishQualityToKeep: 3,        // Minimum saklanacak balık kalitesi (1-5 arası)
-  sellFishInterval: 10,           // Her kaç balık tutma işleminden sonra satış yapılacak
-  wsTimeout: 60000,               // WebSocket zaman aşımı (ms)
-  wsReconnectDelay: 5000,         // WebSocket yeniden bağlanma gecikmesi (ms)
-  logLevel: 'info'                // Loglama seviyesi (debug, info, warn, error)
-};
+  "accounts": [
+    {
+      "enabled": true,
+      "token": "ACCOUNT_1_TOKEN",
+      "fishingRange": "short_range",
+      "is5x": false,
+      "delayBetweenFishing": 3000,
+      "enableDailyClaim": true,
+      "enableAutoSellFish": true,
+      "minFishQualityToKeep": 4,
+      "sellFishInterval": 10,
+      "retryOnError": true,
+      "maxRetries": 3,
+      "retryDelay": 5000
+    },
+    {
+      "enabled": false,
+      "token": "ACCOUNT_2_TOKEN",
+      "fishingRange": "short_range",
+      "is5x": false,
+      "delayBetweenFishing": 3000,
+      "enableDailyClaim": true,
+      "enableAutoSellFish": true,
+      "minFishQualityToKeep": 4,
+      "sellFishInterval": 10,
+      "retryOnError": true,
+      "maxRetries": 3,
+      "retryDelay": 5000
+    }
+  ]
+}
 ```
 
-## 📊 Enerji Yönetimi
+### 🔑 Getting Tokens
 
-Bot, mevcut enerjinize göre balık tutma menzillerini akıllıca seçer:
-- `short_range`: 1 enerji maliyeti
-- `mid_range`: 2 enerji maliyeti
-- `long_range`: 3 enerji maliyeti
+1. Log in to [FishingFrenzy.co](https://fishingfrenzy.co)
+2. Open your browser's developer tools (F12)
+3. Go to the Network tab
+4. Find any API request
+5. Look for the "Authorization" header in the request
+6. Copy the value after "Bearer "
+7. Paste this value into the "token" field for the respective account in config.json
 
-Enerji tükendiğinde, bot enerji yenilenme süresini bekleyecektir (varsayılan: 24 saat).
+### ⚙️ Account Settings
 
-## 🎁 Günlük Ödül Toplama
+You can customize the following settings for each account:
 
-Bot otomatik olarak günlük ödüllerinizi kontrol eder ve alınabilir durumdaysa toplar. Bu özelliği `enableDailyClaim` ayarıyla etkinleştirebilir veya devre dışı bırakabilirsiniz.
+- `enabled`: Whether the account is active (true/false)
+- `token`: Account authentication token
+- `fishingRange`: Fishing range (short_range, mid_range, long_range)
+- `is5x`: Is 5x bonus active? (true/false)
+- `delayBetweenFishing`: Delay between fishing operations (ms)
+- `enableDailyClaim`: Auto-claim daily rewards? (true/false)
+- `enableAutoSellFish`: Enable automatic fish selling? (true/false)
+- `minFishQualityToKeep`: Minimum fish quality to keep
+- `sellFishInterval`: After how many fish should selling occur?
+- `retryOnError`: Retry on error? (true/false)
+- `maxRetries`: Maximum number of retries
+- `retryDelay`: Delay between retries (ms)
 
-## 🐟 Otomatik Balık Satma
+### 🌐 Global Settings
 
-Bot, belirtilen kalite eşiğinin altındaki balıkları otomatik olarak satabilir. Yüksek kaliteli balıkları saklamak ve düşük kaliteli balıkları satmak için `minFishQualityToKeep` ayarını kullanabilirsiniz.
+The global settings affect all accounts:
 
-## 🔄 WebSocket Yeniden Bağlanma
+- `apiBaseUrl`: API endpoint URL
+- `wsUrl`: WebSocket server URL
+- `wsTimeout`: WebSocket connection timeout (ms)
+- `wsReconnectDelay`: Delay before reconnecting (ms)
+- `maxRetries`: Maximum number of retries for operations
+- `retryDelay`: Delay between retries (ms)
+- `energyRefreshHours`: Hours until energy refreshes
+- `logLevel`: Logging detail level (debug/info/warn/error)
+- `rangeCosts`: Energy cost for each fishing range
 
-Bot, WebSocket bağlantısında herhangi bir kesinti olursa otomatik olarak yeniden bağlanmaya çalışır. Bağlantı denemelerinin sayısını ve gecikme süresini `maxReconnectAttempts` ve `wsReconnectDelay` ayarlarıyla yapılandırabilirsiniz.
+## 🚀 Usage
 
-## 🔒 Kimlik Doğrulama
+To start the bot:
 
-Kimlik doğrulama tokeninizi almanın yolu:
-1. [Fishing Frenzy](https://fishingfrenzy.co/) sitesine giriş yapın
-2. Tarayıcı geliştirici araçlarını açın (F12)
-3. Uygulama sekmesine gidin → Yerel Depolama → fishingfrenzy.co
-4. Token değerini kopyalayın (tırnak işaretleri olmadan)
-5. Bunu `token.txt` dosyanıza yapıştırın
+```bash
+node index.js
+```
 
+The bot will display a banner showing:
+- Number of active accounts
+- Available fishing ranges
+- Energy costs for each range
 
-Join tg, I will post bots there too.
-Telegram
+Each account will run independently with its own:
+- Inventory management
+- Energy tracking
+- Fish selling
+- Daily reward claiming
+- Error handling and retries
 
-For donations:
-EVM: 0xE065339713A8D9BF897d595ED89150da521a7d09
+## 📝 Notes
 
-SOLANA: CcBPMkpMbZ4TWE8HeUWyv9CkEVqPLJ5gYe163g5SR4Vf
+- Each account requires a separate token
+- Never share your tokens with anyone
+- Regularly refresh your tokens for account security
+- Adding too many accounts may result in IP restrictions
+- The bot handles each account in parallel but with slight delays to prevent rate limiting
+- Console output is color-coded for better readability
+- Each account's actions are prefixed with its index number for easy tracking
+
+## 🔧 Troubleshooting
+
+If you see "401 Unauthorized" errors:
+1. Check if your tokens are valid
+2. Get new tokens following the token acquisition steps
+3. Update the tokens in config.json
+4. Restart the bot
+
+If you see rate limiting errors:
+1. Increase the `delayBetweenFishing` value
+2. Reduce the number of active accounts
+3. Use different IPs for different accounts
+
+## 🆕 Updates
+
+The bot now features:
+- Improved error handling for each account
+- Independent state management per account
+- Parallel account processing
+- Configurable delays between actions
+- Enhanced logging with account identification
+- Automatic recovery from connection issues
+
+## 🤝 Contributing
+
+Feel free to:
+- Report bugs
+- Suggest features
+- Submit pull requests
+- Share improvements
+
+## ⚖️ License
+
+This project is licensed under the MIT License.
