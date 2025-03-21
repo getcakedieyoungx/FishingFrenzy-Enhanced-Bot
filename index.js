@@ -3,80 +3,60 @@ const WebSocket = require('ws');
 const chalk = require('chalk');
 const fs = require('fs');
 
-// Token dosyasını oku
-let authToken;
+// Yapılandırma dosyasını oku
+let config;
 try {
-  authToken = fs.readFileSync('token.txt', 'utf8').trim();
+  config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 } catch (error) {
-  console.error(' Token dosyası okunamadı:', error.message);
+  console.error('Yapılandırma dosyası okunamadı:', error.message);
   process.exit(1);
 }
 
-// Yapılandırma ayarları
-const config = {
-  authToken: authToken,
-  apiBaseUrl: 'https://api.fishingfrenzy.co',
-  wsUrl: 'wss://api.fishingfrenzy.co',
-  fishingRange: 'mid_range', 
-  is5x: false,
-  delayBetweenFishing: 5000,
-  retryDelay: 30000,
-  maxRetries: 5,
-  energyRefreshHours: 24, 
-  rangeCosts: {
-    'short_range': 1,
-    'mid_range': 2,
-    'long_range': 3
-  },
-  // Yeni özellikler için yapılandırma
-  enableDailyClaim: true,         // Günlük ödül toplama aktif/pasif
-  enableAutoSellFish: true,       // Otomatik balık satışı aktif/pasif
-  minFishQualityToKeep: 3,        // Minimum saklanacak balık kalitesi (1-5 arası)
-  sellFishInterval: 10,           // Her kaç balık tutma işleminden sonra satış yapılacak
-  wsTimeout: 60000,               // WebSocket zaman aşımı (ms)
-  wsReconnectDelay: 5000,         // WebSocket yeniden bağlanma gecikmesi (ms)
-  logLevel: 'info'                // Loglama seviyesi (debug, info, warn, error)
-};
+// Her hesap için durum değişkenleri
+const accountStates = new Map();
 
-// API istekleri için header'lar
-const headers = {
-  'accept': 'application/json',
-  'accept-language': 'en-US,en;q=0.6',
-  'authorization': `Bearer ${config.authToken}`, 
-  'content-type': 'application/json',
-  'sec-ch-ua': '"Chromium";v="134", "Not:A-Brand";v="24", "Brave";v="134"',
-  'sec-ch-ua-mobile': '?0',
-  'sec-ch-ua-platform': '"Windows"',
-  'sec-fetch-dest': 'empty',
-  'sec-fetch-mode': 'cors',
-  'sec-fetch-site': 'same-site',
-  'sec-gpc': '1',
-  'Referer': 'https://fishingfrenzy.co/',
-  'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'cache-control': 'no-cache',
-  'pragma': 'no-cache'
-};
-
-// Durum değişkenleri
-let currentEnergy = 0;
-let retryCount = 0;
-let energyRefreshTime = null;
-let fishCaughtSinceLastSell = 0;
-let totalFishCaught = 0;
-let dailyRewardClaimed = false;
-let caughtFishInventory = [];
-let lastDailyClaimCheck = null;
+// Hesap durumu sınıfı
+class AccountState {
+  constructor(accountConfig) {
+    this.config = { ...config.global, ...accountConfig };
+    this.currentEnergy = 0;
+    this.retryCount = 0;
+    this.energyRefreshTime = null;
+    this.fishCaughtSinceLastSell = 0;
+    this.totalFishCaught = 0;
+    this.dailyRewardClaimed = false;
+    this.caughtFishInventory = [];
+    this.lastDailyClaimCheck = null;
+    this.headers = {
+      'accept': 'application/json',
+      'accept-language': 'en-US,en;q=0.6',
+      'authorization': `Bearer ${accountConfig.token}`,
+      'content-type': 'application/json',
+      'sec-ch-ua': '"Chromium";v="134", "Not:A-Brand";v="24", "Brave";v="134"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Windows"',
+      'sec-fetch-dest': 'empty',
+      'sec-fetch-mode': 'cors',
+      'sec-fetch-site': 'same-site',
+      'sec-gpc': '1',
+      'Referer': 'https://fishingfrenzy.co/',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'cache-control': 'no-cache',
+      'pragma': 'no-cache'
+    };
+  }
+}
 
 // Log fonksiyonları
-const log = (msg) => console.log(msg); 
-const logSuccess = (msg) => console.log(chalk.green(`${msg}`)); 
-const logInfo = (msg) => console.log(`${msg}`); 
-const logWarn = (msg) => console.log(chalk.yellow(`${msg}`)); 
-const logError = (msg) => console.log(chalk.red(`${msg}`)); 
-const logHighlight = (label, value) => console.log(`${label}: ${chalk.cyan(value)}`); 
-const logDebug = (msg) => { 
-  if (config.logLevel === 'debug') {
-    console.log(chalk.gray(`[DEBUG] ${msg}`));
+const log = (accountIndex, msg) => console.log(`[Hesap ${accountIndex + 1}] ${msg}`);
+const logSuccess = (accountIndex, msg) => console.log(chalk.green(`[Hesap ${accountIndex + 1}] ${msg}`));
+const logInfo = (accountIndex, msg) => console.log(`[Hesap ${accountIndex + 1}] ${msg}`);
+const logWarn = (accountIndex, msg) => console.log(chalk.yellow(`[Hesap ${accountIndex + 1}] ${msg}`));
+const logError = (accountIndex, msg) => console.log(chalk.red(`[Hesap ${accountIndex + 1}] ${msg}`));
+const logHighlight = (accountIndex, label, value) => console.log(`[Hesap ${accountIndex + 1}] ${label}: ${chalk.cyan(value)}`);
+const logDebug = (accountIndex, msg) => {
+  if (config.global.logLevel === 'debug') {
+    console.log(chalk.gray(`[Hesap ${accountIndex + 1}] [DEBUG] ${msg}`));
   }
 };
 
@@ -84,32 +64,31 @@ const logDebug = (msg) => {
 function displayBanner() {
   const banner = [
     chalk.cyan('=================================================='),
-    chalk.cyan('    Fishing Frenzy Geliştirilmiş Bot v1.5.0     '),
+    chalk.cyan('    Fishing Frenzy Geliştirilmiş Bot v2.0.0     '),
     chalk.cyan('=================================================='),
-    chalk.yellow('  Daily Claim: ') + (config.enableDailyClaim ? chalk.green('Aktif') : chalk.red('Pasif')),
-    chalk.yellow('  Otomatik Balık Satışı: ') + (config.enableAutoSellFish ? chalk.green('Aktif') : chalk.red('Pasif')),
-    chalk.yellow('  Min. Kalite (Saklama): ') + chalk.green(config.minFishQualityToKeep),
+    chalk.yellow('  Multi-Account Desteği: ') + chalk.green('Aktif'),
+    chalk.yellow('  Aktif Hesap Sayısı: ') + chalk.green(config.accounts.filter(acc => acc.enabled).length),
     chalk.cyan('==================================================')
   ];
   banner.forEach(line => console.log(line));
 }
 
 // Profil bilgilerini göster
-function displayProfileInfo(data) {
-  logSuccess('Profil Başarıyla Yüklendi!');
-  logInfo(` Kullanıcı ID: ${data.userId || 'N/A'}`); 
-  log(` Altın: ${data.gold || 0}`); 
-  logHighlight(' Enerji', `${data.energy || 0}`); 
-  log(` Balık Puanları: ${data.fishPoint || 0}`); 
-  log(` Tecrübe: ${data.exp || 0}`); 
+function displayProfileInfo(accountIndex, data) {
+  logSuccess(accountIndex, 'Profil Başarıyla Yüklendi!');
+  logInfo(accountIndex, ` Kullanıcı ID: ${data.userId || 'N/A'}`);
+  log(accountIndex, ` Altın: ${data.gold || 0}`);
+  logHighlight(accountIndex, ' Enerji', `${data.energy || 0}`);
+  log(accountIndex, ` Balık Puanları: ${data.fishPoint || 0}`);
+  log(accountIndex, ` Tecrübe: ${data.exp || 0}`);
   
   if (data.level) {
-    log(` Seviye: ${data.level}`);
+    log(accountIndex, ` Seviye: ${data.level}`);
   }
   
   if (data.expToNextLevel) {
     const expProgress = ((data.exp % data.expToNextLevel) / data.expToNextLevel * 100).toFixed(2);
-    log(` Sonraki seviyeye ilerleme: %${expProgress}`);
+    log(accountIndex, ` Sonraki seviyeye ilerleme: %${expProgress}`);
   }
 }
 
@@ -118,63 +97,62 @@ function formatTimeRemaining(milliseconds) {
   const seconds = Math.floor(milliseconds / 1000) % 60;
   const minutes = Math.floor(milliseconds / (1000 * 60)) % 60;
   const hours = Math.floor(milliseconds / (1000 * 60 * 60));
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`; 
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
 // Envanter kontrolü
-async function checkInventory() {
+async function checkInventory(accountIndex) {
+  const state = accountStates.get(accountIndex);
   try {
-    const response = await axios.get(`${config.apiBaseUrl}/v1/inventory`, { headers }); 
-    currentEnergy = response.data.energy || 0;
-    displayProfileInfo(response.data);
+    const response = await axios.get(`${state.config.apiBaseUrl}/v1/inventory`, { headers: state.headers });
+    state.currentEnergy = response.data.energy || 0;
+    displayProfileInfo(accountIndex, response.data);
 
     // Günlük takvimdeki günü kontrol et
-    if (config.enableDailyClaim && !dailyRewardClaimed) {
+    if (state.config.enableDailyClaim && !state.dailyRewardClaimed) {
       const now = new Date();
-      if (!lastDailyClaimCheck || (now - lastDailyClaimCheck) > (1000 * 60 * 60)) { // saatte bir kontrol et
-        await checkAndClaimDailyReward();
-        lastDailyClaimCheck = now;
+      if (!state.lastDailyClaimCheck || (now - state.lastDailyClaimCheck) > (1000 * 60 * 60)) {
+        await checkAndClaimDailyReward(accountIndex);
+        state.lastDailyClaimCheck = now;
       }
     }
 
-    if (currentEnergy > 0) {
+    if (state.currentEnergy > 0) {
       return true;
     } else {
-      if (!energyRefreshTime) {
-        energyRefreshTime = new Date();
-        energyRefreshTime.setHours(energyRefreshTime.getHours() + config.energyRefreshHours);
+      if (!state.energyRefreshTime) {
+        state.energyRefreshTime = new Date();
+        state.energyRefreshTime.setHours(state.energyRefreshTime.getHours() + state.config.energyRefreshHours);
       }
       return false;
     }
   } catch (error) {
-    logError(`Envanter kontrolü başarısız: ${error.message}`); 
+    logError(accountIndex, `Envanter kontrolü başarısız: ${error.message}`);
     if (error.response && error.response.status === 503) {
-      logWarn('Sunucu geçici olarak kullanılamıyor, tekrar denemeden önce bekleniyor...');
+      logWarn(accountIndex, 'Sunucu geçici olarak kullanılamıyor, tekrar denemeden önce bekleniyor...');
     }
     return false;
   }
 }
 
 // Günlük ödül kontrolü ve toplama
-async function checkAndClaimDailyReward() {
+async function checkAndClaimDailyReward(accountIndex) {
+  const state = accountStates.get(accountIndex);
   try {
-    logInfo('Günlük ödül kontrol ediliyor...');
+    logInfo(accountIndex, 'Günlük ödül kontrol ediliyor...');
     
-    // İlk önce günlük ödüllerin durumunu kontrol et
-    const checkResponse = await axios.get(`${config.apiBaseUrl}/v1/daily-rewards/status`, { headers });
+    const checkResponse = await axios.get(`${state.config.apiBaseUrl}/v1/daily-rewards/status`, { headers: state.headers });
     
     if (checkResponse.data && checkResponse.data.canClaim) {
-      logInfo('Günlük ödül almaya hak kazandınız! Toplanıyor...');
+      logInfo(accountIndex, 'Günlük ödül almaya hak kazandınız! Toplanıyor...');
       
-      // Günlük ödülü talep et
-      const claimResponse = await axios.post(`${config.apiBaseUrl}/v1/daily-rewards/claim`, {}, { headers });
+      const claimResponse = await axios.post(`${state.config.apiBaseUrl}/v1/daily-rewards/claim`, {}, { headers: state.headers });
       
       if (claimResponse.data && claimResponse.data.success) {
-        logSuccess('Günlük ödül başarıyla toplandı!');
+        logSuccess(accountIndex, 'Günlük ödül başarıyla toplandı!');
         
-        // Ödülleri göster
         if (claimResponse.data.rewards && claimResponse.data.rewards.length > 0) {
-          logInfo('Alınan ödüller:');
+          logInfo(accountIndex, 'Alınan ödüller:');
           claimResponse.data.rewards.forEach(reward => {
             let rewardText = `- ${reward.quantity}x ${reward.name}`;
             if (reward.type === 'Gold') {
@@ -182,27 +160,25 @@ async function checkAndClaimDailyReward() {
             } else if (reward.type === 'Item') {
               rewardText = chalk.blue(rewardText);
             }
-            log(rewardText);
+            log(accountIndex, rewardText);
           });
         }
         
-        dailyRewardClaimed = true;
+        state.dailyRewardClaimed = true;
         return true;
-      } else {
-        logError('Günlük ödül toplanamadı.');
       }
     } else {
-      logInfo('Şu anda alınabilecek günlük ödül yok.');
+      logInfo(accountIndex, 'Şu anda alınabilecek günlük ödül yok.');
       if (checkResponse.data && checkResponse.data.nextResetTime) {
         const nextReset = new Date(checkResponse.data.nextResetTime);
         const timeUntilReset = nextReset - new Date();
-        logInfo(`Bir sonraki ödül: ${formatTimeRemaining(timeUntilReset)}`);
+        logInfo(accountIndex, `Bir sonraki ödül: ${formatTimeRemaining(timeUntilReset)}`);
       }
     }
   } catch (error) {
-    logError(`Günlük ödül kontrolü sırasında hata: ${error.message}`);
+    logError(accountIndex, `Günlük ödül kontrolü sırasında hata: ${error.message}`);
     if (error.response) {
-      logDebug(`Hata detayı: ${JSON.stringify(error.response.data)}`);
+      logDebug(accountIndex, `Hata detayı: ${JSON.stringify(error.response.data)}`);
     }
   }
   
@@ -210,75 +186,71 @@ async function checkAndClaimDailyReward() {
 }
 
 // Balıkları sat
-async function sellFish() {
-  if (!config.enableAutoSellFish || caughtFishInventory.length === 0) {
+async function sellFish(accountIndex) {
+  const state = accountStates.get(accountIndex);
+  if (!state.config.enableAutoSellFish || state.caughtFishInventory.length === 0) {
     return false;
   }
   
   try {
-    logInfo('Balıklar satılıyor...');
+    logInfo(accountIndex, 'Balıklar satılıyor...');
     
-    // Satılacak ve saklanacak balıkları filtrele
-    const fishesToSell = caughtFishInventory.filter(fish => 
-      fish.quality < config.minFishQualityToKeep
+    const fishesToSell = state.caughtFishInventory.filter(fish => 
+      fish.quality < state.config.minFishQualityToKeep
     );
     
     if (fishesToSell.length === 0) {
-      logInfo('Satılacak balık yok. Tüm balıklar minimum kalite eşiğinin üzerinde.');
+      logInfo(accountIndex, 'Satılacak balık yok. Tüm balıklar minimum kalite eşiğinin üzerinde.');
       return false;
     }
     
     const fishIds = fishesToSell.map(fish => fish.id);
     
-    // Balıkları sat
-    const response = await axios.post(`${config.apiBaseUrl}/v1/inventory/sell-fish`, {
+    const response = await axios.post(`${state.config.apiBaseUrl}/v1/inventory/sell-fish`, {
       fishIds: fishIds
-    }, { headers });
+    }, { headers: state.headers });
     
     if (response.data && response.data.success) {
       const totalGold = fishesToSell.reduce((total, fish) => total + (fish.sellPrice || 0), 0);
-      logSuccess(`${fishesToSell.length} balık başarıyla satıldı! +${totalGold} altın kazanıldı.`);
+      logSuccess(accountIndex, `${fishesToSell.length} balık başarıyla satıldı! +${totalGold} altın kazanıldı.`);
       
-      // Satılan balıkları envanterden kaldır
-      caughtFishInventory = caughtFishInventory.filter(fish => 
-        fish.quality >= config.minFishQualityToKeep
+      state.caughtFishInventory = state.caughtFishInventory.filter(fish => 
+        fish.quality >= state.config.minFishQualityToKeep
       );
       
-      fishCaughtSinceLastSell = 0;
+      state.fishCaughtSinceLastSell = 0;
       return true;
-    } else {
-      logError('Balık satışı başarısız oldu.');
-      return false;
     }
   } catch (error) {
-    logError(`Balık satışı sırasında hata: ${error.message}`);
+    logError(accountIndex, `Balık satışı sırasında hata: ${error.message}`);
     if (error.response) {
-      logDebug(`Hata detayı: ${JSON.stringify(error.response.data)}`);
+      logDebug(accountIndex, `Hata detayı: ${JSON.stringify(error.response.data)}`);
     }
     return false;
   }
 }
 
 // Balık tutma menzilini seç
-function selectFishingRange() {
+function selectFishingRange(accountIndex) {
+  const state = accountStates.get(accountIndex);
   const availableRanges = [];
-  if (currentEnergy >= config.rangeCosts['long_range']) {
+  if (state.currentEnergy >= state.config.rangeCosts['long_range']) {
     availableRanges.push('long_range');
   }
-  if (currentEnergy >= config.rangeCosts['mid_range']) {
+  if (state.currentEnergy >= state.config.rangeCosts['mid_range']) {
     availableRanges.push('mid_range');
   }
-  if (currentEnergy >= config.rangeCosts['short_range']) {
+  if (state.currentEnergy >= state.config.rangeCosts['short_range']) {
     availableRanges.push('short_range');
   }
   if (availableRanges.length === 0) {
-    logWarn("Mevcut enerji ile kullanılabilecek balık tutma menzili yok!");
+    logWarn(accountIndex, "Mevcut enerji ile kullanılabilecek balık tutma menzili yok!");
     return 'short_range';
   }
   const selectedRange = availableRanges[Math.floor(Math.random() * availableRanges.length)];
-  if (config.fishingRange !== selectedRange) {
-    config.fishingRange = selectedRange;
-    logInfo(`Seçilen balık tutma menzili: ${chalk.cyan(config.fishingRange)} (Maliyet: ${config.rangeCosts[config.fishingRange]} enerji)`); 
+  if (state.config.fishingRange !== selectedRange) {
+    state.config.fishingRange = selectedRange;
+    logInfo(accountIndex, `Seçilen balık tutma menzili: ${chalk.cyan(selectedRange)} (Maliyet: ${state.config.rangeCosts[selectedRange]} enerji)`);
   }
   return selectedRange;
 }
@@ -306,7 +278,8 @@ function calculatePositionY(frame, direction) {
 }
 
 // Geliştirilmiş balık tutma fonksiyonu
-async function fish() {
+async function fish(accountIndex) {
+  const state = accountStates.get(accountIndex);
   return new Promise((resolve, reject) => {
     let wsConnection = null;
     let gameStarted = false;
@@ -319,49 +292,46 @@ async function fish() {
     const maxReconnectAttempts = 3;
 
     const connectWebSocket = () => {
-      // Önceki bağlantıyı kapat
       if (wsConnection) {
         try {
           wsConnection.close();
         } catch (err) {
-          logDebug(`Önceki WebSocket bağlantısını kapatma hatası: ${err.message}`);
+          logDebug(accountIndex, `Önceki WebSocket bağlantısını kapatma hatası: ${err.message}`);
         }
       }
 
-      logDebug(`WebSocket bağlantısı başlatılıyor (Deneme: ${reconnectAttempt + 1}/${maxReconnectAttempts + 1})`);
-      wsConnection = new WebSocket(`${config.wsUrl}/?token=${config.authToken}`);
+      logDebug(accountIndex, `WebSocket bağlantısı başlatılıyor (Deneme: ${reconnectAttempt + 1}/${maxReconnectAttempts + 1})`);
+      wsConnection = new WebSocket(`${state.config.wsUrl}/?token=${state.config.token}`);
 
-      // Zaman aşımını ayarla
       const timeout = setTimeout(() => {
-        logWarn('Balık tutma zaman aşımı - bağlantı kapatılıyor');
+        logWarn(accountIndex, 'Balık tutma zaman aşımı - bağlantı kapatılıyor');
         if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
           wsConnection.close();
         }
         
-        // Yeniden bağlanma denemesi
         if (reconnectAttempt < maxReconnectAttempts) {
           reconnectAttempt++;
-          logInfo(`Yeniden bağlanılıyor (${reconnectAttempt}/${maxReconnectAttempts})...`);
-          setTimeout(connectWebSocket, config.wsReconnectDelay);
+          logInfo(accountIndex, `Yeniden bağlanılıyor (${reconnectAttempt}/${maxReconnectAttempts})...`);
+          setTimeout(connectWebSocket, state.config.wsReconnectDelay);
         } else {
-          logError(`Maksimum yeniden bağlanma denemesi aşıldı (${maxReconnectAttempts})`);
+          logError(accountIndex, `Maksimum yeniden bağlanma denemesi aşıldı (${maxReconnectAttempts})`);
           resolve(false);
         }
-      }, config.wsTimeout);
+      }, state.config.wsTimeout);
 
       wsConnection.on('open', () => {
-        logDebug('WebSocket bağlantısı açıldı');
+        logDebug(accountIndex, 'WebSocket bağlantısı açıldı');
         wsConnection.send(JSON.stringify({
           cmd: 'prepare',
-          range: config.fishingRange,
-          is5x: config.is5x
+          range: state.config.fishingRange,
+          is5x: state.config.is5x
         }));
       });
 
       wsConnection.on('message', (data) => {
         try {
           const message = JSON.parse(data.toString());
-          logDebug(`WebSocket mesajı alındı: ${message.type}`);
+          logDebug(accountIndex, `WebSocket mesajı alındı: ${message.type}`);
 
           if (message.type === 'initGame') {
             gameStarted = true;
@@ -375,7 +345,7 @@ async function fish() {
             const y = calculatePositionY(frame, direction);
             let entry = direction !== 0 ? [x, y, frame, direction] : [x, y];
             keyFrames.push(entry);
-            logDebug(`Frame eklendi: ${keyFrames.length}/${requiredFrames}`);
+            logDebug(accountIndex, `Frame eklendi: ${keyFrames.length}/${requiredFrames}`);
 
             if (keyFrames.length >= requiredFrames && !endSent) {
               let finalFrames = [];
@@ -402,7 +372,7 @@ async function fish() {
                 },
                 en: 1
               };
-              logDebug('End komutu gönderiliyor');
+              logDebug(accountIndex, 'End komutu gönderiliyor');
               wsConnection.send(JSON.stringify(endCommand));
               endSent = true;
             }
@@ -414,15 +384,14 @@ async function fish() {
             
             if (gameSuccess) {
               const fish = message.catchedFish.fishInfo;
-              logSuccess(`${chalk.cyan(fish.fishName)} yakalandı! (kalite: ${fish.quality}) Değer: ${fish.sellPrice} altın ve ${fish.expGain} XP!`); 
-              logInfo(`⭐ Mevcut XP: ${message.catchedFish.currentExp}/${message.catchedFish.expToNextLevel}`); 
-              logHighlight(`⚡ Kalan Enerji`, `${message.catchedFish.energy}`); 
-              log(`💰 Altın: ${message.catchedFish.gold}`); 
-              log(`🐟 Balık Puanları: ${message.catchedFish.fishPoint}`); 
+              logSuccess(accountIndex, `${chalk.cyan(fish.fishName)} yakalandı! (kalite: ${fish.quality}) Değer: ${fish.sellPrice} altın ve ${fish.expGain} XP!`);
+              logInfo(accountIndex, `⭐ Mevcut XP: ${message.catchedFish.currentExp}/${message.catchedFish.expToNextLevel}`);
+              logHighlight(accountIndex, `⚡ Kalan Enerji`, `${message.catchedFish.energy}`);
+              log(accountIndex, `💰 Altın: ${message.catchedFish.gold}`);
+              log(accountIndex, `🐟 Balık Puanları: ${message.catchedFish.fishPoint}`);
               
-              // Yakalanan balığı envantere ekle
-              if (config.enableAutoSellFish) {
-                caughtFishInventory.push({
+              if (state.config.enableAutoSellFish) {
+                state.caughtFishInventory.push({
                   id: fish.id,
                   name: fish.fishName,
                   quality: fish.quality,
@@ -430,145 +399,161 @@ async function fish() {
                 });
               }
               
-              currentEnergy = message.catchedFish.energy;
-              totalFishCaught++;
-              fishCaughtSinceLastSell++;
+              state.currentEnergy = message.catchedFish.energy;
+              state.totalFishCaught++;
+              state.fishCaughtSinceLastSell++;
             } else {
-              logError('Balık yakalanamadı');
-              logHighlight(`⚡ Kalan Enerji`, `${message.catchedFish.energy}`); 
-              log(`💰 Altın: ${message.catchedFish.gold}`); 
-              log(`🐟 Balık Puanları: ${message.catchedFish.fishPoint}`); 
+              logError(accountIndex, 'Balık yakalanamadı');
+              logHighlight(accountIndex, `⚡ Kalan Enerji`, `${message.catchedFish.energy}`);
+              log(accountIndex, `💰 Altın: ${message.catchedFish.gold}`);
+              log(accountIndex, `🐟 Balık Puanları: ${message.catchedFish.fishPoint}`);
               
-              currentEnergy = message.catchedFish.energy;
+              state.currentEnergy = message.catchedFish.energy;
             }
             
             wsConnection.close();
             resolve(gameSuccess);
           }
         } catch (parseError) {
-          logError(`Mesaj ayrıştırma hatası: ${parseError.message}`); 
-          logDebug(`Hatalı mesaj içeriği: ${data.toString()}`);
+          logError(accountIndex, `Mesaj ayrıştırma hatası: ${parseError.message}`);
+          logDebug(accountIndex, `Hatalı mesaj içeriği: ${data.toString()}`);
         }
       });
 
       wsConnection.on('error', (error) => {
-        logError(`WebSocket hatası: ${error.message}`); 
+        logError(accountIndex, `WebSocket hatası: ${error.message}`);
         clearTimeout(timeout);
         
-        // Yeniden bağlanma denemesi
         if (reconnectAttempt < maxReconnectAttempts) {
           reconnectAttempt++;
-          logInfo(`Yeniden bağlanılıyor (${reconnectAttempt}/${maxReconnectAttempts})...`);
-          setTimeout(connectWebSocket, config.wsReconnectDelay);
+          logInfo(accountIndex, `Yeniden bağlanılıyor (${reconnectAttempt}/${maxReconnectAttempts})...`);
+          setTimeout(connectWebSocket, state.config.wsReconnectDelay);
         } else {
           reject(error);
         }
       });
 
       wsConnection.on('close', (code, reason) => {
-        logDebug(`WebSocket bağlantısı kapandı. Kod: ${code}, Sebep: ${reason || 'Belirtilmedi'}`);
+        logDebug(accountIndex, `WebSocket bağlantısı kapandı. Kod: ${code}, Sebep: ${reason || 'Belirtilmedi'}`);
         if (!gameStarted && reconnectAttempt < maxReconnectAttempts) {
           reconnectAttempt++;
-          logInfo(`Oyun başlamadan bağlantı kapandı. Yeniden bağlanılıyor (${reconnectAttempt}/${maxReconnectAttempts})...`);
-          setTimeout(connectWebSocket, config.wsReconnectDelay);
+          logInfo(accountIndex, `Oyun başlamadan bağlantı kapandı. Yeniden bağlanılıyor (${reconnectAttempt}/${maxReconnectAttempts})...`);
+          setTimeout(connectWebSocket, state.config.wsReconnectDelay);
         } else if (!gameStarted) {
-          logError('Balık tutma başlamadan bağlantı kapandı, maksimum deneme sayısına ulaşıldı');
+          logError(accountIndex, 'Balık tutma başlamadan bağlantı kapandı, maksimum deneme sayısına ulaşıldı');
           resolve(false);
         }
         clearTimeout(timeout);
       });
     };
 
-    // İlk bağlantıyı başlat
     connectWebSocket();
   });
 }
 
 // Enerji için geri sayım göster
-async function showEnergyCountdown() {
-  if (!energyRefreshTime) return;
-  logWarn('Enerji yetersiz. Enerjinin yenilenmesi bekleniyor...');
-  while (new Date() < energyRefreshTime) {
-    const timeRemaining = energyRefreshTime - new Date();
-    process.stdout.write(`\r Enerji şu süre sonra yenilenecek: ${chalk.cyan(formatTimeRemaining(timeRemaining))}`); 
+async function showEnergyCountdown(accountIndex) {
+  const state = accountStates.get(accountIndex);
+  if (!state.energyRefreshTime) return;
+  logWarn(accountIndex, 'Enerji yetersiz. Enerjinin yenilenmesi bekleniyor...');
+  while (new Date() < state.energyRefreshTime) {
+    const timeRemaining = state.energyRefreshTime - new Date();
+    process.stdout.write(`\r[Hesap ${accountIndex + 1}] Enerji şu süre sonra yenilenecek: ${chalk.cyan(formatTimeRemaining(timeRemaining))}`);
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   console.log('\n');
-  logSuccess('Enerji şimdi yenilenmiş olmalı!');
-  energyRefreshTime = null;
+  logSuccess(accountIndex, 'Enerji şimdi yenilenmiş olmalı!');
+  state.energyRefreshTime = null;
   await new Promise(resolve => setTimeout(resolve, 5000));
 }
 
-// Ana bot döngüsü
-async function runBot() {
-  logInfo('Fishing Frenzy botu başlatılıyor...');
+// Hesap için bot döngüsü
+async function runAccountBot(accountIndex) {
+  const state = accountStates.get(accountIndex);
+  logInfo(accountIndex, 'Bot başlatılıyor...');
   
-  // İlk envanter kontrolü
-  const initialInventoryCheck = await checkInventory();
+  const initialInventoryCheck = await checkInventory(accountIndex);
   if (!initialInventoryCheck) {
-    logWarn('İlk envanter kontrolü başarısız oldu, 30 saniye sonra tekrar deneniyor...');
+    logWarn(accountIndex, 'İlk envanter kontrolü başarısız oldu, 30 saniye sonra tekrar deneniyor...');
     await new Promise(resolve => setTimeout(resolve, 30000));
   }
   
   while (true) {
     try {
-      const hasEnergy = await checkInventory();
+      const hasEnergy = await checkInventory(accountIndex);
 
       if (!hasEnergy) {
-        await showEnergyCountdown();
+        await showEnergyCountdown(accountIndex);
         continue;
       }
 
-      selectFishingRange();
+      selectFishingRange(accountIndex);
 
-      // Balık tutma zamanı geldi mi kontrol et
-      logInfo(`🎣 Balık tutma işlemi başlatılıyor: ${chalk.cyan(config.fishingRange)}... (Enerji maliyeti: ${config.rangeCosts[config.fishingRange]})`); 
-      const success = await fish();
+      logInfo(accountIndex, `🎣 Balık tutma işlemi başlatılıyor: ${chalk.cyan(state.config.fishingRange)}... (Enerji maliyeti: ${state.config.rangeCosts[state.config.fishingRange]})`);
+      const success = await fish(accountIndex);
 
       if (success) {
-        logSuccess(`Balık tutma işlemi başarıyla tamamlandı. ${config.delayBetweenFishing / 1000} saniye bekleniyor...`); 
+        logSuccess(accountIndex, `Balık tutma işlemi başarıyla tamamlandı. ${state.config.delayBetweenFishing / 1000} saniye bekleniyor...`);
         
-        // Balık satma işlemini kontrol et
-        if (config.enableAutoSellFish && fishCaughtSinceLastSell >= config.sellFishInterval) {
-          await sellFish();
+        if (state.config.enableAutoSellFish && state.fishCaughtSinceLastSell >= state.config.sellFishInterval) {
+          await sellFish(accountIndex);
         }
         
-        await new Promise(resolve => setTimeout(resolve, config.delayBetweenFishing));
-        retryCount = 0;
+        await new Promise(resolve => setTimeout(resolve, state.config.delayBetweenFishing));
+        state.retryCount = 0;
       } else {
-        retryCount++;
-        const waitTime = retryCount > config.maxRetries ? config.retryDelay * 3 : config.retryDelay;
-        logWarn(`Balık tutma işlemi başarısız oldu. Deneme ${retryCount}/${config.maxRetries}. ${waitTime / 1000} saniye bekleniyor...`); 
+        state.retryCount++;
+        const waitTime = state.retryCount > state.config.maxRetries ? state.config.retryDelay * 3 : state.config.retryDelay;
+        logWarn(accountIndex, `Balık tutma işlemi başarısız oldu. Deneme ${state.retryCount}/${state.config.maxRetries}. ${waitTime / 1000} saniye bekleniyor...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     } catch (error) {
-      logError(`Balık tutma işlemi sırasında hata: ${error.message}`); 
-      retryCount++;
-      const waitTime = retryCount > config.maxRetries ? 60000 : 10000;
-      logWarn(`Hata oluştu. Deneme ${retryCount}/${config.maxRetries}. ${waitTime / 1000} saniye bekleniyor...`); 
+      logError(accountIndex, `Balık tutma işlemi sırasında hata: ${error.message}`);
+      state.retryCount++;
+      const waitTime = state.retryCount > state.config.maxRetries ? 60000 : 10000;
+      logWarn(accountIndex, `Hata oluştu. Deneme ${state.retryCount}/${state.config.maxRetries}. ${waitTime / 1000} saniye bekleniyor...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+}
+
+// Ana bot başlatma fonksiyonu
+async function startBot() {
+  displayBanner();
+  logInfo(-1, '------------------------------------------------------');
+  log(-1, 'Kullanılabilir balık tutma menzilleri:');
+  log(-1, `- short_range: ${config.global.rangeCosts['short_range']} enerji`);
+  log(-1, `- mid_range: ${config.global.rangeCosts['mid_range']} enerji`);
+  log(-1, `- long_range: ${config.global.rangeCosts['long_range']} enerji`);
+  logInfo(-1, '------------------------------------------------------');
+
+  // Her hesap için durum oluştur
+  config.accounts.forEach((account, index) => {
+    if (account.enabled) {
+      accountStates.set(index, new AccountState(account));
+    }
+  });
+
+  // Her aktif hesap için bot başlat
+  const activeAccounts = config.accounts.filter(acc => acc.enabled);
+  for (let i = 0; i < activeAccounts.length; i++) {
+    const accountIndex = i;
+    runAccountBot(accountIndex).catch(error => {
+      logError(accountIndex, `Bot'ta kritik hata: ${error}`);
+    });
+    // Hesaplar arası kısa bir gecikme ekle
+    if (i < activeAccounts.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
   }
 }
 
 // İşlenmeyen hataları yakala
 process.on('uncaughtException', (error) => {
-  logError(`İşlenmeyen hata: ${error}`); 
-  logWarn('Bot 1 dakika içinde yeniden başlatılacak...');
-  setTimeout(() => runBot(), 60000);
+  logError(-1, `İşlenmeyen hata: ${error}`);
+  logWarn(-1, 'Bot 1 dakika içinde yeniden başlatılacak...');
+  setTimeout(() => startBot(), 60000);
 });
 
-// Programı başlat
-displayBanner(); 
-logInfo('------------------------------------------------------');
-log(`Kullanılabilir balık tutma menzilleri:`); 
-log(`- short_range: ${config.rangeCosts['short_range']} enerji`); 
-log(`- mid_range: ${config.rangeCosts['mid_range']} enerji`); 
-log(`- long_range: ${config.rangeCosts['long_range']} enerji`); 
-log(`Deneme sayısı: ${config.maxRetries}, Balık tutma işlemleri arası gecikme: ${config.delayBetweenFishing}ms`); 
-log(`Enerji yenilenme süresi: ${config.energyRefreshHours} saat`); 
-logInfo('------------------------------------------------------');
-runBot().catch(error => {
-  logError(`Bot'ta kritik hata: ${error}`); 
-  process.exit(1);
-});
+// Botu başlat
+startBot();
