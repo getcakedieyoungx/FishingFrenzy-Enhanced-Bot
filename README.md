@@ -1,4 +1,4 @@
-# 🎣 Fishing Frenzy Geliştirilmiş Bot
+# 🎣 Fishing Frenzy  Bot
 
 Fishing Frenzy için geliştirilmiş özelliklere sahip otomatik balık tutma botu. Günlük ödül toplama, otomatik balık satma ve daha fazla özellik içerir.
 
@@ -105,18 +105,11 @@ Kimlik doğrulama tokeninizi almanın yolu:
 4. Token değerini kopyalayın (tırnak işaretleri olmadan)
 5. Bunu `token.txt` dosyanıza yapıştırın
 
-## ⚠️ Sorumluluk Reddi
 
-Bu bot yalnızca eğitim amaçlı olarak sağlanmaktadır. Otomatik komut dosyalarının kullanımı, Fishing Frenzy'nin hizmet şartlarını ihlal edebilir. Kendi sorumluluğunuzda kullanın.
+Join tg, I will post bots there too.
+Telegram
 
-## 📜 Lisans
+For donations:
+EVM: 0xE065339713A8D9BF897d595ED89150da521a7d09
 
-Bu proje MIT Lisansı altında lisanslanmıştır - ayrıntılar için LICENSE dosyasına bakın.
-
-## 🤝 Katkıda Bulunma
-
-Katkılar memnuniyetle karşılanır! Lütfen bir Pull Request göndermekten çekinmeyin.
-
-## 📧 İletişim
-
-Sorular veya destek için lütfen GitHub deposunda bir konu açın.
+SOLANA: CcBPMkpMbZ4TWE8HeUWyv9CkEVqPLJ5gYe163g5SR4Vf
