@@ -1,7 +1,7 @@
 # 🎣 Fishing Frenzy Enhanced Bot v2.0.0
 
 Register:
-[FishingFrenzy.co](https://fishingfrenzy.co/?code=Q43PJ7))
+[FishingFrenzy.co](https://fishingfrenzy.co/?code=Q43PJ7)
 
 ## 🚀 Features
 
@@ -173,15 +173,6 @@ If you see rate limiting errors:
 2. Reduce the number of active accounts
 3. Use different IPs for different accounts
 
-## 🆕 Updates
-
-The bot now features:
-- Improved error handling for each account
-- Independent state management per account
-- Parallel account processing
-- Configurable delays between actions
-- Enhanced logging with account identification
-- Automatic recovery from connection issues
 
 ## 🤝 Contributing
 
@@ -194,3 +185,11 @@ Feel free to:
 ## ⚖️ License
 
 This project is licensed under the MIT License.
+
+Join tg, I will post bots there too.
+Telegram
+
+For donations:
+EVM: 0xE065339713A8D9BF897d595ED89150da521a7d09
+
+SOLANA: CcBPMkpMbZ4TWE8HeUWyv9CkEVqPLJ5gYe163g5SR4Vf
