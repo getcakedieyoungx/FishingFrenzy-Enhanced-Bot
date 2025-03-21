@@ -1,0 +1,38 @@
+{
+  "name": "fishingfrenzy-enhanced-bot",
+  "version": "1.5.0",
+  "description": "Geliştirilmiş özelliklere sahip Fishing Frenzy otomatik balık tutma botu. Daily claim, sell fish ve diğer özelliklerle.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/getcakedieyoungx/FishingFrenzy-Enhanced-Bot.git"
+  },
+  "keywords": [
+    "fishing",
+    "frenzy",
+    "bot",
+    "automation",
+    "web3",
+    "game",
+    "daily",
+    "claim",
+    "sell",
+    "fish"
+  ],
+  "author": "getcakedieyoungx",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/getcakedieyoungx/FishingFrenzy-Enhanced-Bot/issues"
+  },
+  "homepage": "https://github.com/getcakedieyoungx/FishingFrenzy-Enhanced-Bot#readme",
+  "dependencies": {
+    "axios": "^1.6.7",
+    "chalk": "^4.1.2",
+    "fs": "^0.0.1-security",
+    "ws": "^8.16.0"
+  }
+}
