@@ -1,0 +1,7 @@
+# Fishing Frenzy kimlik doğrulama tokeninizi buraya yerleştirin
+# Token almak için:
+# 1. https://fishingfrenzy.co/ adresinde oturum açın
+# 2. Tarayıcının geliştirici araçlarını açın (F12)
+# 3. Application (Uygulama) sekmesine gidin > Local Storage > fishingfrenzy.co
+# 4. Token değerini alın ve aşağıya tırnak işaretleri olmadan yapıştırın
+# 5. Bu satırları (#) silin
