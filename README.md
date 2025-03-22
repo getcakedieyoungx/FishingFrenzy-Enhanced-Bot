@@ -174,15 +174,16 @@ If you see rate limiting errors:
 3. Use different IPs for different accounts
 
 
-##For donations:
+## For donations:
 EVM: 0xE065339713A8D9BF897d595ED89150da521a7d09
 
 SOLANA: CcBPMkpMbZ4TWE8HeUWyv9CkEVqPLJ5gYe163g5SR4Vf
+
+Join tg, I will post bots there too.
+t.me/getcakedieyoungx
 
 ## ⚖️ License
 
 This project is licensed under the MIT License.
 
-Join tg, I will post bots there too.
-t.me/getcakedieyoungx
 
